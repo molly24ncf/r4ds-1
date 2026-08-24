@@ -90,3 +90,62 @@ ggplot(top10_long, aes(x = week, y = rank, group = song_id)) +
   theme_minimal() +
   theme(legend.title = element_blank())
 ```
+
+```{r}
+#| cache: true
+music <- read_csv("data/music.csv", show_col_types = FALSE)
+```
+
+```{r}
+coordinate_summary <- music |>
+  mutate(
+    placeholder_coordinates = if_else(
+      artist.latitude == 0 & artist.longitude == 0,
+      "placeholder",
+      "usable"
+    )
+  ) |>
+  count(placeholder_coordinates, name = "artists")
+
+coordinate_summary
+```
+
+```{r}
+world <- map_data("world")
+
+music_with_coordinates <- music |>
+  filter(
+    !is.na(artist.latitude),
+    !is.na(artist.longitude),
+    !(artist.latitude == 0 & artist.longitude == 0),
+    song.year > 0
+  )
+
+ggplot() +
+  geom_polygon(
+    data = world,
+    aes(x = long, y = lat, group = group),
+    fill = "gray90",
+    color = "gray60"
+  ) +
+  geom_point(
+    data = music_with_coordinates,
+    aes(
+      x = artist.longitude,
+      y = artist.latitude,
+      color = song.year
+    ),
+    alpha = 0.7,
+    size = 1.2
+  ) +
+  scale_color_viridis_c() +
+  coord_quickmap() +
+  labs(
+    title = "Geographic pattern of song release years",
+    subtitle = "Points show artists with usable coordinates and a valid song year; rows with year 0 are excluded.",
+    x = "",
+    y = "",
+    color = "Song year"
+  ) +
+  theme_minimal()
+```
