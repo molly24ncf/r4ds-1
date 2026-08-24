@@ -1,0 +1,92 @@
+---
+title: "Analyzing Music Data"
+format: html
+execute:
+  echo: false
+---
+
+```{r}
+library(tidyverse)
+#| message: false
+```
+
+```{r}
+billboard_long <- billboard |>
+  pivot_longer(
+    cols = starts_with("wk"),
+    names_to = "week",
+    values_to = "rank"
+  ) |>
+  mutate(
+    week = parse_number(week),
+    rank = as.numeric(rank),
+    song_id = paste(artist, track, sep = " - ")
+  ) |>
+  filter(!is.na(rank))
+
+song_summary <- billboard_long |>
+  group_by(artist, track, song_id) |>
+  summarise(
+    first_rank = first(rank),
+    best_rank = min(rank),
+    first_week_at_best_rank = min(week[rank == min(rank)]),
+    total_weeks_on_chart = n(),
+    .groups = "drop"
+  ) |>
+  arrange(best_rank, first_rank)
+
+notable_songs <- bind_rows(
+  song_summary |>
+    filter(best_rank == 1) |>
+    arrange(first_week_at_best_rank) |>
+    slice_head(n = 1) |>
+    mutate(notable = "fastest to reach number one"),
+  song_summary |>
+    filter(best_rank == 1) |>
+    arrange(desc(first_week_at_best_rank)) |>
+    slice_head(n = 1) |>
+    mutate(notable = "slowest to reach number one"),
+  song_summary |>
+    filter(best_rank <= 10) |>
+    arrange(desc(total_weeks_on_chart)) |>
+    slice_head(n = 1) |>
+    mutate(notable = "top-10 song with longest chart run")
+) |>
+  mutate(song_id = paste(artist, track, sep = " - "))
+
+highlighted <- notable_songs |>
+  pull(song_id)
+
+all_top_ten <- song_summary |>
+  filter(best_rank <= 10) |>
+  pull(song_id)
+
+top10_long <- billboard_long |>
+  filter(song_id %in% all_top_ten)
+
+color_map <- c(
+  "Madonna - Music" = "#d62728",
+  "Lonestar - Amazed" = "#2ca02c",
+  "Creed - Higher" = "#1f77b4"
+)
+
+ggplot(top10_long, aes(x = week, y = rank, group = song_id)) +
+  geom_line(data = top10_long |> filter(!(song_id %in% highlighted)),
+            color = "gray70", alpha = 0.6) +
+  geom_line(data = top10_long |> filter(song_id %in% highlighted),
+            aes(color = song_id), linewidth = 1.1) +
+  scale_y_reverse() +
+  scale_color_manual(
+    values = color_map,
+    breaks = names(color_map),
+    labels = names(color_map)
+  ) +
+  labs(
+    title = "Top-10 songs over time",
+    x = "Week",
+    y = "Rank",
+    color = "Notable songs"
+  ) +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+```
